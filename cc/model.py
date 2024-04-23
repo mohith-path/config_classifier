@@ -20,7 +20,6 @@ class Classifier(L.LightningModule):
         self._backbone = resnet50(weights=ResNet50_Weights.IMAGENET1K_V2)
         feat_dim = self._backbone.fc.in_features
         self._backbone.fc = nn.Identity()
-        self.pre_processor = ResNet50_Weights.IMAGENET1K_V2.transforms()
 
         # Freeze backbone
         for param in self._backbone.parameters():
@@ -35,11 +34,7 @@ class Classifier(L.LightningModule):
         self._val_accuracy = BinaryAccuracy(threshold=0.5, multidim_average="global")
         self._train_accuracy = BinaryAccuracy(threshold=0.5, multidim_average="global")
 
-    def pre_process(self, x: torch.Tensor) -> torch.Tensor:
-        return self.pre_processor(x)
-
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.pre_process(x)
         x = self._backbone.forward(x)
         x = self._prediction_head(x)
 
