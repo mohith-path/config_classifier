@@ -35,14 +35,14 @@ class Classifier(L.LightningModule):
         self._train_accuracy = BinaryAccuracy(threshold=0.5, multidim_average="global")
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self._backbone.forward(x)
+        x = self._backbone(x)
         x = self._prediction_head(x)
 
         return x
 
     def validation_step(self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> torch.Tensor:
         x, y = batch
-        logits = self.forward(x=self.pre_process(x))
+        logits = self.forward(x)
         predictions = torch.sigmoid(logits)
 
         loss = nn.functional.binary_cross_entropy(input=predictions, target=y, reduction="mean")
@@ -59,7 +59,7 @@ class Classifier(L.LightningModule):
 
     def training_step(self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> torch.Tensor:
         x, y = batch
-        logits = self.forward(x=self.pre_process(x))
+        logits = self.forward(x)
         loss = nn.functional.binary_cross_entropy_with_logits(input=logits, target=y, reduction="mean")
 
         self.log(name="train_bolt_ce_loss", value=loss, prog_bar=True, on_epoch=True, on_step=False, logger=True, batch_size=len(x))
