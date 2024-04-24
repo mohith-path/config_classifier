@@ -11,7 +11,8 @@ from cc.model import Classifier
 from cc.dataset import CCDataset
 
 CONFIG: Dict[str, Any] = {
-    "batch_size": 16,
+    "epochs": 400,
+    "batch_size": 32,
     "num_workers": 8,
     "seed": 0,
     "dataset_path": "data/v1/clean",
@@ -43,7 +44,7 @@ def train():
     )
 
     trainer = L.Trainer(
-        max_epochs=200,
+        max_epochs=CONFIG["epochs"],
         accelerator="gpu",
         enable_progress_bar=True,
         callbacks=[

@@ -85,6 +85,7 @@ class Classifier(L.LightningModule):
         loss = nn.functional.binary_cross_entropy_with_logits(input=logits, target=y, reduction="mean")
 
         self.log(name="train_bolt_ce_loss", value=loss, prog_bar=True, on_epoch=True, on_step=False, logger=True, batch_size=len(x))
+        self.logger.experiment.add_image(tag=f"train_image_{batch_idx}", img_tensor=x[0], global_step=self.current_epoch)
 
         self._train_accuracy.update(preds=predictions, target=y)
         self._train_confusion_matrix.update(preds=predictions[:, 0].round(), target=y[:, 0])
@@ -100,7 +101,15 @@ class Classifier(L.LightningModule):
         self.logger.experiment.add_figure("train_bolt_confusion_matrix", bolt_cm_figure, global_step=self.current_epoch)
         self._train_confusion_matrix.reset()
 
+        self.log(name="lr", value=self.optimizers().param_groups[0]["lr"], on_step=False, on_epoch=True, prog_bar=False, logger=True)
+
     def configure_optimizers(self) -> None:
         optimizer = optim.Adam(self.parameters(), lr=self._lr)
 
-        return optimizer
+        scheduler = optim.lr_scheduler.StepLR(
+            optimizer=optimizer,
+            step_size=200,
+            gamma=0.1,
+        )
+
+        return {"optimizer": optimizer, "lr_scheduler": scheduler}
