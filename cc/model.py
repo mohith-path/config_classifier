@@ -6,7 +6,7 @@ import torch.optim as optim
 import pytorch_lightning as L
 import torchvision.transforms.v2 as T
 from torchvision.models import ResNet50_Weights, resnet50
-from torchmetrics.classification import BinaryAccuracy
+from torchmetrics.classification import BinaryAccuracy, MulticlassConfusionMatrix
 
 
 class Classifier(L.LightningModule):
@@ -46,6 +46,9 @@ class Classifier(L.LightningModule):
         self._val_accuracy = BinaryAccuracy(threshold=0.5, multidim_average="global")
         self._train_accuracy = BinaryAccuracy(threshold=0.5, multidim_average="global")
 
+        self._val_confusion_matrix = MulticlassConfusionMatrix(num_classes=2)
+        self._train_confusion_matrix = MulticlassConfusionMatrix(num_classes=2)
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.pre_processor(x)
         x = self._backbone(x)
@@ -62,6 +65,7 @@ class Classifier(L.LightningModule):
         self.log(name="val_bolt_ce_loss", value=loss, prog_bar=True, on_epoch=True, on_step=False, logger=True, batch_size=len(x))
 
         self._val_accuracy.update(preds=predictions, target=y)
+        self._val_confusion_matrix.update(preds=predictions[:, 0], target=y[:, 0])
 
         return loss
 
@@ -70,14 +74,20 @@ class Classifier(L.LightningModule):
         self.log(name="val_bolt_cls_acc", value=accuracy, prog_bar=True, on_epoch=True, on_step=False, logger=True)
         self._val_accuracy.reset()
 
+        bolt_cm_figure, _ = self._val_confusion_matrix.plot()
+        self.logger.experiment.add_figure("val_bolt_confusion_matrix", bolt_cm_figure)
+        self._val_confusion_matrix.reset()
+
     def training_step(self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> torch.Tensor:
         x, y = batch
         logits = self.forward(x)
+        predictions = torch.sigmoid(logits)
         loss = nn.functional.binary_cross_entropy_with_logits(input=logits, target=y, reduction="mean")
 
         self.log(name="train_bolt_ce_loss", value=loss, prog_bar=True, on_epoch=True, on_step=False, logger=True, batch_size=len(x))
 
-        self._train_accuracy.update(preds=torch.sigmoid(logits), target=y)
+        self._train_accuracy.update(preds=predictions, target=y)
+        self._train_confusion_matrix.update(preds=predictions[:, 0], target=y[:, 0])
 
         return loss
 
@@ -85,6 +95,10 @@ class Classifier(L.LightningModule):
         accuracy = self._train_accuracy.compute()
         self.log(name="train_bolt_cls_acc", value=accuracy, prog_bar=True, on_epoch=True, on_step=False, logger=True)
         self._train_accuracy.reset()
+
+        bolt_cm_figure, _ = self._train_confusion_matrix.plot()
+        self.logger.experiment.add_figure("train_bolt_confusion_matrix", bolt_cm_figure)
+        self._train_confusion_matrix.reset()
 
     def configure_optimizers(self) -> None:
         optimizer = optim.Adam(self.parameters(), lr=self._lr)
