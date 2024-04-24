@@ -15,7 +15,7 @@ CONFIG: Dict[str, Any] = {
     "num_workers": 8,
     "seed": 0,
     "dataset_path": "data/v1/clean",
-    "lr": 1e-6,
+    "lr": 1e-5,
 }
 
 

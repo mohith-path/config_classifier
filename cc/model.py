@@ -21,6 +21,9 @@ class Classifier(L.LightningModule):
         feat_dim = self._backbone.fc.in_features
         self._backbone.fc = nn.Identity()
 
+        # self._backbone = torch.hub.load("facebookresearch/dinov2", "dinov2_vits14_reg")
+        # feat_dim = self._backbone.embed_dim
+
         # Freeze backbone
         for param in self._backbone.parameters():
             param.requires_grad = False
