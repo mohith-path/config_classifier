@@ -17,6 +17,7 @@ CONFIG: Dict[str, Any] = {
     "seed": 0,
     "dataset_path": "data/v1/clean",
     "lr": 1e-5,
+    "weight_decay": 1e-2,
 }
 
 

@@ -11,11 +11,12 @@ from torchmetrics.classification import BinaryAccuracy, MulticlassConfusionMatri
 
 class Classifier(L.LightningModule):
 
-    def __init__(self, lr: float = 1e-5) -> None:
+    def __init__(self, lr: float = 1e-5, weight_decay: float = 0) -> None:
 
         super().__init__()
 
         self._lr = lr
+        self._weight_decay = weight_decay
 
         # Setup backbone
         self._backbone = resnet50(weights=ResNet50_Weights.IMAGENET1K_V2)
@@ -104,7 +105,7 @@ class Classifier(L.LightningModule):
         self.log(name="lr", value=self.optimizers().param_groups[0]["lr"], on_step=False, on_epoch=True, prog_bar=False, logger=True)
 
     def configure_optimizers(self) -> None:
-        optimizer = optim.Adam(self.parameters(), lr=self._lr)
+        optimizer = optim.Adam(self.parameters(), lr=self._lr, weight_decay=self._weight_decay)
 
         scheduler = optim.lr_scheduler.StepLR(
             optimizer=optimizer,
