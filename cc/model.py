@@ -65,7 +65,7 @@ class Classifier(L.LightningModule):
         self.log(name="val_bolt_ce_loss", value=loss, prog_bar=True, on_epoch=True, on_step=False, logger=True, batch_size=len(x))
 
         self._val_accuracy.update(preds=predictions, target=y)
-        self._val_confusion_matrix.update(preds=predictions[:, 0], target=y[:, 0])
+        self._val_confusion_matrix.update(preds=predictions[:, 0].round(), target=y[:, 0])
 
         return loss
 
@@ -75,7 +75,7 @@ class Classifier(L.LightningModule):
         self._val_accuracy.reset()
 
         bolt_cm_figure, _ = self._val_confusion_matrix.plot()
-        self.logger.experiment.add_figure("val_bolt_confusion_matrix", bolt_cm_figure)
+        self.logger.experiment.add_figure("val_bolt_confusion_matrix", bolt_cm_figure, global_step=self.current_epoch)
         self._val_confusion_matrix.reset()
 
     def training_step(self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> torch.Tensor:
@@ -87,7 +87,7 @@ class Classifier(L.LightningModule):
         self.log(name="train_bolt_ce_loss", value=loss, prog_bar=True, on_epoch=True, on_step=False, logger=True, batch_size=len(x))
 
         self._train_accuracy.update(preds=predictions, target=y)
-        self._train_confusion_matrix.update(preds=predictions[:, 0], target=y[:, 0])
+        self._train_confusion_matrix.update(preds=predictions[:, 0].round(), target=y[:, 0])
 
         return loss
 
@@ -97,7 +97,7 @@ class Classifier(L.LightningModule):
         self._train_accuracy.reset()
 
         bolt_cm_figure, _ = self._train_confusion_matrix.plot()
-        self.logger.experiment.add_figure("train_bolt_confusion_matrix", bolt_cm_figure)
+        self.logger.experiment.add_figure("train_bolt_confusion_matrix", bolt_cm_figure, global_step=self.current_epoch)
         self._train_confusion_matrix.reset()
 
     def configure_optimizers(self) -> None:
