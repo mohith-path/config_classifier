@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import pytorch_lightning as L
+import torchvision.transforms.v2 as T
 from torchvision.models import ResNet50_Weights, resnet50
 from torchmetrics.classification import BinaryAccuracy
 
@@ -33,11 +34,20 @@ class Classifier(L.LightningModule):
         self._prediction_head.weight.data.normal_(mean=0.0, std=0.01)
         self._prediction_head.bias.data.zero_()
 
+        # Model preprocessor
+        self.pre_processor = T.Compose(
+            [
+                T.ToDtype(dtype=torch.float32, scale=True),
+                T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+            ]
+        )
+
         # Setup metrics
         self._val_accuracy = BinaryAccuracy(threshold=0.5, multidim_average="global")
         self._train_accuracy = BinaryAccuracy(threshold=0.5, multidim_average="global")
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.pre_processor(x)
         x = self._backbone(x)
         x = self._prediction_head(x)
 

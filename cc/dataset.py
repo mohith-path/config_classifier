@@ -27,8 +27,6 @@ class CCDataset(Dataset):
                     T.RandomPerspective(distortion_scale=0.25),
                     T.Resize(size=232, interpolation=torchvision.transforms.InterpolationMode.BILINEAR, antialias=True),
                     T.RandomCrop(224),
-                    T.ToDtype(dtype=torch.float32, scale=True),
-                    T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
                 ]
             )
         else:
@@ -36,8 +34,6 @@ class CCDataset(Dataset):
                 [
                     T.Resize(size=232, interpolation=torchvision.transforms.InterpolationMode.BILINEAR, antialias=True),
                     T.CenterCrop(224),
-                    T.ToDtype(dtype=torch.float32, scale=True),
-                    T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
                 ]
             )
 
