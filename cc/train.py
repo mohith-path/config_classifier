@@ -11,12 +11,12 @@ from cc.model import Classifier
 from cc.dataset import CCDataset
 
 CONFIG: Dict[str, Any] = {
-    "epochs": 400,
+    "epochs": 200,
     "batch_size": 32,
     "num_workers": 8,
     "seed": 0,
     "dataset_path": "data/v1/clean",
-    "lr": 1e-5,
+    "lr": 1e-4,
     "weight_decay": 1e-2,
 }
 

@@ -51,6 +51,17 @@ class Classifier(L.LightningModule):
         self._val_confusion_matrix = MulticlassConfusionMatrix(num_classes=2)
         self._train_confusion_matrix = MulticlassConfusionMatrix(num_classes=2)
 
+    def configure_optimizers(self) -> None:
+        optimizer = optim.Adam(self.parameters(), lr=self._lr, weight_decay=self._weight_decay)
+
+        scheduler = optim.lr_scheduler.StepLR(
+            optimizer=optimizer,
+            step_size=100,
+            gamma=0.2,
+        )
+
+        return {"optimizer": optimizer, "lr_scheduler": scheduler}
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.pre_processor(x)
         x = self._backbone(x)
@@ -65,6 +76,7 @@ class Classifier(L.LightningModule):
 
         loss = nn.functional.binary_cross_entropy(input=predictions, target=y, reduction="mean")
         self.log(name="val_bolt_ce_loss", value=loss, prog_bar=True, on_epoch=True, on_step=False, logger=True, batch_size=len(x))
+        self.logger.experiment.add_image(tag=f"val_image_{batch_idx}", img_tensor=x[0], global_step=self.current_epoch)
 
         self._val_accuracy.update(preds=predictions, target=y)
         self._val_confusion_matrix.update(preds=predictions[:, 0].round(), target=y[:, 0])
@@ -105,19 +117,8 @@ class Classifier(L.LightningModule):
 
         self.log(name="lr", value=self.optimizers().param_groups[0]["lr"], on_step=False, on_epoch=True, prog_bar=False, logger=True)
 
-        # # Freeze backbone
-        # if self.current_epoch == 200:
-        #     print("unfreezing backbone")
-        #     for param in self._backbone.parameters():
-        #         param.requires_grad = True
-
-    def configure_optimizers(self) -> None:
-        optimizer = optim.Adam(self.parameters(), lr=self._lr, weight_decay=self._weight_decay)
-
-        scheduler = optim.lr_scheduler.StepLR(
-            optimizer=optimizer,
-            step_size=200,
-            gamma=0.1,
-        )
-
-        return {"optimizer": optimizer, "lr_scheduler": scheduler}
+        # Freeze backbone
+        if self.current_epoch == 100:
+            print("unfreezing backbone")
+            for param in self._backbone.parameters():
+                param.requires_grad = True
