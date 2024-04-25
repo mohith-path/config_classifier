@@ -5,7 +5,7 @@ import torch.nn as nn
 import torch.optim as optim
 import pytorch_lightning as L
 import torchvision.transforms.v2 as T
-from torchvision.models import ResNet50_Weights, resnet50
+from torchvision.models import ResNet18_Weights, resnet18
 from torchmetrics.classification import BinaryAccuracy, MulticlassConfusionMatrix
 
 
@@ -19,10 +19,11 @@ class Classifier(L.LightningModule):
         self._weight_decay = weight_decay
 
         # Setup backbone
-        self._backbone = resnet50(weights=ResNet50_Weights.IMAGENET1K_V2)
+        self._backbone = resnet18(weights=ResNet18_Weights.IMAGENET1K_V1)
         feat_dim = self._backbone.fc.in_features
         self._backbone.fc = nn.Identity()
 
+        # DINO Network
         # self._backbone = torch.hub.load("facebookresearch/dinov2", "dinov2_vits14_reg")
         # feat_dim = self._backbone.embed_dim
 
@@ -103,6 +104,12 @@ class Classifier(L.LightningModule):
         self._train_confusion_matrix.reset()
 
         self.log(name="lr", value=self.optimizers().param_groups[0]["lr"], on_step=False, on_epoch=True, prog_bar=False, logger=True)
+
+        # # Freeze backbone
+        # if self.current_epoch == 200:
+        #     print("unfreezing backbone")
+        #     for param in self._backbone.parameters():
+        #         param.requires_grad = True
 
     def configure_optimizers(self) -> None:
         optimizer = optim.Adam(self.parameters(), lr=self._lr, weight_decay=self._weight_decay)

@@ -24,7 +24,8 @@ class CCDataset(Dataset):
                     T.RandomHorizontalFlip(),
                     T.RandomVerticalFlip(),
                     T.RandomGrayscale(),
-                    T.RandomPerspective(distortion_scale=0.25),
+                    T.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3, hue=0.1),
+                    T.RandomPerspective(distortion_scale=0.15),
                     T.Resize(size=232, interpolation=torchvision.transforms.InterpolationMode.BILINEAR, antialias=True),
                     T.RandomCrop(224),
                 ]
