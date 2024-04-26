@@ -54,9 +54,9 @@ class Classifier(L.LightningModule):
     def configure_optimizers(self) -> None:
         optimizer = optim.Adam(self.parameters(), lr=self._lr, weight_decay=self._weight_decay)
 
-        scheduler = optim.lr_scheduler.StepLR(
+        scheduler = optim.lr_scheduler.MultiStepLR(
             optimizer=optimizer,
-            step_size=100,
+            milestones=[100],
             gamma=0.2,
         )
 

@@ -29,5 +29,9 @@ def split_dataset(dataset_path: str, train_fraction: float = 0.7) -> None:
     with open(os.path.join(dataset_path, "train.txt"), "w") as f:
         f.writelines(f"{folder}\n" for folder in train_set)
 
-    with open(os.path.join(dataset_path, "test.txt"), "w") as f:
+    with open(os.path.join(dataset_path, "val.txt"), "w") as f:
         f.writelines(f"{folder}\n" for folder in test_set)
+
+
+if __name__ == "__main__":
+    pass

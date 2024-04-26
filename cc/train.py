@@ -15,7 +15,7 @@ CONFIG: Dict[str, Any] = {
     "batch_size": 32,
     "num_workers": 8,
     "seed": 0,
-    "dataset_path": "data/v1/clean",
+    "dataset_path": "data/v2",
     "lr": 1e-4,
     "weight_decay": 1e-2,
 }
@@ -26,7 +26,7 @@ def train():
     torch.manual_seed(CONFIG["seed"])
 
     train_dataset = CCDataset(path=CONFIG["dataset_path"], type="train")
-    validation_dataset = CCDataset(path=CONFIG["dataset_path"], type="validation")
+    validation_dataset = CCDataset(path=CONFIG["dataset_path"], type="val")
 
     train_dataloader = torch.utils.data.DataLoader(
         dataset=train_dataset,
