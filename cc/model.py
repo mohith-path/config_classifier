@@ -62,8 +62,9 @@ class Classifier(L.LightningModule):
 
         return {"optimizer": optimizer, "lr_scheduler": scheduler}
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.pre_processor(x)
+    def forward(self, x: torch.Tensor, skip_pre_process: bool = False) -> torch.Tensor:
+        if not skip_pre_process:
+            x = self.pre_processor(x)
         x = self._backbone(x)
         x = self._prediction_head(x)
 

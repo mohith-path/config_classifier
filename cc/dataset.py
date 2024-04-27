@@ -2,6 +2,7 @@ import os
 from typing import Tuple
 
 import yaml
+import numpy as np
 import torch
 import torchvision
 import torchvision.transforms.v2 as T
@@ -23,10 +24,12 @@ class CCDataset(Dataset):
                 [
                     T.RandomHorizontalFlip(),
                     T.RandomVerticalFlip(),
+                    T.RandomRotation(degrees=180),
+                    T.GaussianBlur(kernel_size=5, sigma=[0.1, 4]),
                     T.RandomGrayscale(),
                     T.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3, hue=0.1),
-                    T.RandomPerspective(distortion_scale=0.15),
-                    T.Resize(size=232, interpolation=torchvision.transforms.InterpolationMode.BILINEAR, antialias=True),
+                    T.RandomPerspective(distortion_scale=0.25),
+                    T.Resize(size=250, interpolation=torchvision.transforms.InterpolationMode.BILINEAR, antialias=True),
                     T.RandomCrop(224),
                 ]
             )
