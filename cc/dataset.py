@@ -11,13 +11,25 @@ from torch.utils.data.dataset import Dataset
 
 class CCDataset(Dataset):
 
-    def __init__(self, path: str, type: str = "train") -> None:
+    BACKGROUND_IMAGES_PATH = "data/background"
+
+    def __init__(self, path: str, type: str = "train", use_background_augmentation: bool = True) -> None:
 
         self._path = path
+        self.type = type
+        self.use_background_augmentation = use_background_augmentation
 
         with open(f"{path}/{type}.txt", "r") as f:
             samples = f.readlines()
         self._samples = [sample.strip() for sample in samples]  # Strip newline characters from each line
+
+        if use_background_augmentation and type == "train":
+            self._bg_images = list(
+                filter(
+                    lambda folder: os.path.isdir(os.path.join(self.BACKGROUND_IMAGES_PATH, folder)),
+                    sorted(os.listdir(self.BACKGROUND_IMAGES_PATH)),
+                )
+            )
 
         if type == "train":
             self._transforms = torchvision.transforms.Compose(
@@ -47,6 +59,34 @@ class CCDataset(Dataset):
     def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor]:
         img_path = os.path.join(self._path, self._samples[index], "image.png")
         image_tensor = torchvision.io.read_image(path=img_path)
+
+        if self.type == "train" and self.use_background_augmentation and np.random.rand() > 0.2:
+
+            def morph(x: torch.Tensor, scale: float, rotation: float) -> torch.Tensor:
+                h, w = x.shape[-2:]
+                x = T.functional.resize(x, size=(int(scale * h), int(scale * w)), antialias=True)
+                x = T.functional.rotate(x, angle=rotation)
+                x = T.functional.center_crop(x, output_size=(h, w))
+                return x
+
+            # Load a random background image
+            background = np.random.choice(self._bg_images)
+            bg_image = torchvision.io.read_image(path=os.path.join(self.BACKGROUND_IMAGES_PATH, background, "image.png"))
+
+            # Load mask of the current sample
+            mask_path = os.path.join(self._path, self._samples[index], "mask.png")
+            mask = torchvision.io.read_image(mask_path)
+            mask = (mask / 255.0).to(torch.uint8)
+
+            # Apply a random transformation
+            scale = np.random.uniform(0.75, 1.25)
+            rotation = np.random.uniform(0, 360)
+            image_tensor = morph(image_tensor, scale=scale, rotation=rotation)
+            mask = morph(mask, scale=scale, rotation=rotation)
+
+            # Compose a new image
+            image_tensor = image_tensor * mask + (1 - mask) * bg_image
+
         image_tensor = self._transforms(image_tensor)
 
         label_path = os.path.join(self._path, self._samples[index], "label.yaml")
