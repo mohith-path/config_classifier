@@ -63,7 +63,7 @@ def train():
         ],
     )
 
-    model = Classifier(lr=CONFIG.get("lr"))
+    model = Classifier(lr=CONFIG.get("lr"), weight_decay=CONFIG.get("weight_decay"))
 
     trainer.fit(
         model=model,
