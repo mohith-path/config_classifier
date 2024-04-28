@@ -44,6 +44,15 @@ def train():
         drop_last=False,
     )
 
+    validation_dataset_2 = CCDataset(path="data/v2-1", type="val")
+    validation_dataloader_2 = torch.utils.data.DataLoader(
+        dataset=validation_dataset_2,
+        batch_size=CONFIG["batch_size"],
+        shuffle=False,
+        num_workers=CONFIG["num_workers"],
+        drop_last=False,
+    )
+
     trainer = L.Trainer(
         max_epochs=CONFIG["epochs"],
         accelerator="gpu",
@@ -56,7 +65,11 @@ def train():
 
     model = Classifier(lr=CONFIG.get("lr"))
 
-    trainer.fit(model=model, train_dataloaders=train_dataloader, val_dataloaders=validation_dataloader)
+    trainer.fit(
+        model=model,
+        train_dataloaders=train_dataloader,
+        val_dataloaders=[validation_dataloader, validation_dataloader_2],
+    )
 
 
 if __name__ == "__main__":

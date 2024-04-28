@@ -57,7 +57,7 @@ class Classifier(L.LightningModule):
         scheduler = optim.lr_scheduler.MultiStepLR(
             optimizer=optimizer,
             milestones=[100],
-            gamma=0.2,
+            gamma=0.25,
         )
 
         return {"optimizer": optimizer, "lr_scheduler": scheduler}
@@ -66,18 +66,28 @@ class Classifier(L.LightningModule):
         if not skip_pre_process:
             x = self.pre_processor(x)
         x = self._backbone(x)
+        x = torch.nn.functional.dropout(x, p=0.5, training=self.training)
         x = self._prediction_head(x)
 
         return x
 
-    def validation_step(self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> torch.Tensor:
+    def validation_step(self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int, dataloader_idx: int) -> torch.Tensor:
         x, y = batch
         logits = self.forward(x)
         predictions = torch.sigmoid(logits)
 
         loss = nn.functional.binary_cross_entropy(input=predictions, target=y, reduction="mean")
-        self.log(name="val_bolt_ce_loss", value=loss, prog_bar=True, on_epoch=True, on_step=False, logger=True, batch_size=len(x))
-        self.logger.experiment.add_image(tag=f"val_image_{batch_idx}", img_tensor=x[0], global_step=self.current_epoch)
+        self.log(
+            name="val_bolt_ce_loss",
+            value=loss,
+            prog_bar=True,
+            on_epoch=True,
+            on_step=False,
+            logger=True,
+            batch_size=len(x),
+            # add_dataloader_idx=False,
+        )
+        self.logger.experiment.add_image(tag=f"val_image_{dataloader_idx}_{batch_idx}", img_tensor=x[0], global_step=self.current_epoch)
 
         self._val_accuracy.update(preds=predictions, target=y)
         self._val_confusion_matrix.update(preds=predictions[:, 0].round(), target=y[:, 0])
@@ -119,7 +129,12 @@ class Classifier(L.LightningModule):
         self.log(name="lr", value=self.optimizers().param_groups[0]["lr"], on_step=False, on_epoch=True, prog_bar=False, logger=True)
 
         # Freeze backbone
-        if self.current_epoch == 100:
+        if self.current_epoch == 25:
+            print("unfreezing backbone")
+            for param in self._backbone.layer4.parameters():
+                param.requires_grad = True
+
+        if self.current_epoch == 75:
             print("unfreezing backbone")
             for param in self._backbone.parameters():
                 param.requires_grad = True
