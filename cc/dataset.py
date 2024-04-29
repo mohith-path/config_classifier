@@ -91,6 +91,12 @@ class CCDataset(Dataset):
 
         label_path = os.path.join(self._path, self._samples[index], "label.yaml")
         label = yaml.safe_load(open(label_path, "r"))
-        label_tensor = torch.tensor([0 if label["bolt"] == 1 else 1], dtype=torch.float32)
+        label_tensor = torch.tensor(
+            [
+                0 if label["bolt"] == 1 else 1,
+                0 if label["hinge"] == 1 else 1,
+            ],
+            dtype=torch.float32,
+        )
 
         return image_tensor, label_tensor

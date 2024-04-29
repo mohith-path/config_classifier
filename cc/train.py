@@ -18,6 +18,8 @@ CONFIG: Dict[str, Any] = {
     "dataset_path": "data/v2",
     "lr": 1e-4,
     "weight_decay": 1e-2,
+    "train_bolt": True,
+    "train_hinge": True,
 }
 
 
