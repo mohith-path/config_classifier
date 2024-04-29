@@ -20,6 +20,7 @@ CONFIG: Dict[str, Any] = {
     "weight_decay": 1e-2,
     "train_bolt": True,
     "train_hinge": True,
+    "use_custom_layers": True,
 }
 
 
@@ -65,7 +66,13 @@ def train():
         ],
     )
 
-    model = Classifier(lr=CONFIG.get("lr"), weight_decay=CONFIG.get("weight_decay"))
+    model = Classifier(
+        lr=CONFIG.get("lr"),
+        weight_decay=CONFIG.get("weight_decay"),
+        train_bolt=CONFIG.get("train_bolt"),
+        train_hinge=CONFIG.get("train_hinge"),
+        use_custom_layers=CONFIG.get("use_custom_layers"),
+    )
 
     trainer.fit(
         model=model,

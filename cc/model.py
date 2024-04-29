@@ -19,6 +19,7 @@ class Classifier(L.LightningModule):
         weight_decay: float = 0,
         train_bolt: bool = True,
         train_hinge: bool = True,
+        use_custom_layers: bool = True,
     ) -> None:
         assert train_bolt or train_hinge, "You have to train something buddy"
         super().__init__()
@@ -27,11 +28,20 @@ class Classifier(L.LightningModule):
         self._weight_decay = weight_decay
         self.train_bolt = train_bolt
         self.train_hinge = train_hinge
+        self.use_custom_layers = use_custom_layers
 
         # Setup backbone
         self._backbone = resnet18(weights=ResNet18_Weights.IMAGENET1K_V1)
-        feat_dim = self._backbone.fc.in_features
-        self._backbone.fc = nn.Identity()
+
+        if self.use_custom_layers:
+            self._additional_conv = nn.Sequential(
+                nn.Conv2d(in_channels=512, out_channels=256, kernel_size=(3, 3), stride=1, padding="valid"),
+                nn.ReLU(),
+            )
+            feat_dim = 256
+
+        else:
+            feat_dim = 512
 
         # DINO Network
         # self._backbone = torch.hub.load("facebookresearch/dinov2", "dinov2_vits14_reg")
@@ -94,10 +104,30 @@ class Classifier(L.LightningModule):
 
         return {"optimizer": optimizer, "lr_scheduler": scheduler}
 
+    def _backbone_forward(self, x: torch.Tensor) -> torch.Tensor:
+        # See note [TorchScript super()]
+        x = self._backbone.conv1(x)
+        x = self._backbone.bn1(x)
+        x = self._backbone.relu(x)
+        x = self._backbone.maxpool(x)
+
+        x = self._backbone.layer1(x)
+        x = self._backbone.layer2(x)
+        x = self._backbone.layer3(x)
+        x = self._backbone.layer4(x)
+
+        if self.use_custom_layers:
+            x = self._additional_conv(x)
+
+        x = nn.functional.adaptive_avg_pool2d(input=x, output_size=(1, 1))
+        x = torch.flatten(x, 1)
+
+        return x
+
     def forward(self, x: torch.Tensor, skip_pre_process: bool = False) -> Tuple[Union[torch.Tensor, None], Union[torch.Tensor, None]]:
         if not skip_pre_process:
             x = self.pre_processor(x)
-        x = self._backbone(x)
+        x = self._backbone_forward(x)
         x = torch.nn.functional.dropout(x, p=0.5, training=self.training)
 
         bolt_logits = self._bolt_prediction_head(x) if self.train_bolt else None
