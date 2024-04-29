@@ -8,6 +8,8 @@ import torchvision.transforms.v2 as T
 from torchvision.models import ResNet18_Weights, resnet18
 from torchmetrics.classification import BinaryAccuracy, MulticlassConfusionMatrix
 
+VAL_DATASET_ID_MAPS = {0: "", 1: "aux_"}
+
 
 class Classifier(L.LightningModule):
 
@@ -60,18 +62,26 @@ class Classifier(L.LightningModule):
 
         # Setup metrics
         if self.train_bolt:
-            self._bolt_val_accuracy = BinaryAccuracy(threshold=0.5, multidim_average="global")
             self._bolt_train_accuracy = BinaryAccuracy(threshold=0.5, multidim_average="global")
-
-            self._bolt_val_confusion_matrix = MulticlassConfusionMatrix(num_classes=2)
             self._bolt_train_confusion_matrix = MulticlassConfusionMatrix(num_classes=2)
 
-        if self.train_hinge:
-            self._hinge_val_accuracy = BinaryAccuracy(threshold=0.5, multidim_average="global")
-            self._hinge_train_accuracy = BinaryAccuracy(threshold=0.5, multidim_average="global")
+            self._bolt_val_accuracy = nn.ModuleDict(
+                {str(idx): BinaryAccuracy(threshold=0.5, multidim_average="global") for idx in VAL_DATASET_ID_MAPS.keys()}
+            )
+            self._bolt_val_confusion_matrix = nn.ModuleDict(
+                {str(idx): MulticlassConfusionMatrix(num_classes=2) for idx in VAL_DATASET_ID_MAPS.keys()}
+            )
 
-            self._hinge_val_confusion_matrix = MulticlassConfusionMatrix(num_classes=2)
+        if self.train_hinge:
+            self._hinge_train_accuracy = BinaryAccuracy(threshold=0.5, multidim_average="global")
             self._hinge_train_confusion_matrix = MulticlassConfusionMatrix(num_classes=2)
+
+            self._hinge_val_accuracy = nn.ModuleDict(
+                {str(idx): BinaryAccuracy(threshold=0.5, multidim_average="global") for idx in VAL_DATASET_ID_MAPS.keys()}
+            )
+            self._hinge_val_confusion_matrix = nn.ModuleDict(
+                {str(idx): MulticlassConfusionMatrix(num_classes=2) for idx in VAL_DATASET_ID_MAPS.keys()}
+            )
 
     def configure_optimizers(self) -> None:
         optimizer = optim.Adam(self.parameters(), lr=self._lr, weight_decay=self._weight_decay)
@@ -106,44 +116,66 @@ class Classifier(L.LightningModule):
             bolt_loss = nn.functional.binary_cross_entropy(input=bolt_predictions, target=y[:, :1], reduction="mean")
             loss += bolt_loss
 
-            self.log(name="val_bolt_ce_loss", value=bolt_loss, prog_bar=True, on_epoch=True, on_step=False, logger=True, batch_size=len(x))
+            self.log(
+                name=f"val_{VAL_DATASET_ID_MAPS[dataloader_idx]}bolt_ce_loss",
+                value=bolt_loss,
+                prog_bar=True,
+                on_epoch=True,
+                on_step=False,
+                logger=True,
+                batch_size=len(x),
+                add_dataloader_idx=False,
+            )
 
-            self._bolt_val_accuracy.update(preds=bolt_predictions, target=y[:, :1])
-            self._bolt_val_confusion_matrix.update(preds=bolt_predictions[:, 0].round(), target=y[:, 0])
+            self._bolt_val_accuracy[str(dataloader_idx)].update(preds=bolt_predictions, target=y[:, :1])
+            self._bolt_val_confusion_matrix[str(dataloader_idx)].update(preds=bolt_predictions[:, 0].round(), target=y[:, 0])
 
         if self.train_hinge:
             hinge_predictions = torch.sigmoid(hinge_logits)
             hinge_loss = nn.functional.binary_cross_entropy(input=hinge_predictions, target=y[:, 1:], reduction="mean")
             loss += hinge_loss
             self.log(
-                name="val_hinge_ce_loss", value=hinge_loss, prog_bar=True, on_epoch=True, on_step=False, logger=True, batch_size=len(x)
+                name=f"val_{VAL_DATASET_ID_MAPS[dataloader_idx]}hinge_ce_loss",
+                value=hinge_loss,
+                prog_bar=True,
+                on_epoch=True,
+                on_step=False,
+                logger=True,
+                batch_size=len(x),
+                add_dataloader_idx=False,
             )
 
-            self._hinge_val_accuracy.update(preds=hinge_predictions, target=y[:, 1:])
-            self._hinge_val_confusion_matrix.update(preds=hinge_predictions[:, 0].round(), target=y[:, 1])
+            self._hinge_val_accuracy[str(dataloader_idx)].update(preds=hinge_predictions, target=y[:, 1:])
+            self._hinge_val_confusion_matrix[str(dataloader_idx)].update(preds=hinge_predictions[:, 0].round(), target=y[:, 1])
 
-        self.logger.experiment.add_image(tag=f"val_image_{dataloader_idx}_{batch_idx}", img_tensor=x[0], global_step=self.current_epoch)
+        self.logger.experiment.add_image(
+            tag=f"val_{VAL_DATASET_ID_MAPS[dataloader_idx]}image_{batch_idx}",
+            img_tensor=x[0],
+            global_step=self.current_epoch,
+        )
 
         return loss
 
     def on_validation_epoch_end(self) -> None:
         if self.train_bolt:
-            bolt_accuracy = self._bolt_val_accuracy.compute()
-            self.log(name="val_bolt_cls_acc", value=bolt_accuracy, prog_bar=True, on_epoch=True, on_step=False, logger=True)
-            self._bolt_val_accuracy.reset()
+            for k, v in VAL_DATASET_ID_MAPS.items():
+                bolt_accuracy = self._bolt_val_accuracy[str(k)].compute()
+                self.log(name=f"val_{v}bolt_cls_acc", value=bolt_accuracy, prog_bar=True, on_epoch=True, on_step=False, logger=True)
+                self._bolt_val_accuracy[str(k)].reset()
 
-            bolt_cm_figure, _ = self._bolt_val_confusion_matrix.plot()
-            self.logger.experiment.add_figure("val_bolt_confusion_matrix", bolt_cm_figure, global_step=self.current_epoch)
-            self._bolt_val_confusion_matrix.reset()
+                bolt_cm_figure, _ = self._bolt_val_confusion_matrix[str(k)].plot()
+                self.logger.experiment.add_figure(f"val_{v}bolt_confusion_matrix", bolt_cm_figure, global_step=self.current_epoch)
+                self._bolt_val_confusion_matrix[str(k)].reset()
 
         if self.train_hinge:
-            hinge_accuracy = self._hinge_val_accuracy.compute()
-            self.log(name="val_hinge_cls_acc", value=hinge_accuracy, prog_bar=True, on_epoch=True, on_step=False, logger=True)
-            self._hinge_val_accuracy.reset()
+            for k, v in VAL_DATASET_ID_MAPS.items():
+                hinge_accuracy = self._hinge_val_accuracy[str(k)].compute()
+                self.log(name=f"val_{v}hinge_cls_acc", value=hinge_accuracy, prog_bar=True, on_epoch=True, on_step=False, logger=True)
+                self._hinge_val_accuracy[str(k)].reset()
 
-            hinge_cm_figure, _ = self._hinge_val_confusion_matrix.plot()
-            self.logger.experiment.add_figure("val_hinge_confusion_matrix", hinge_cm_figure, global_step=self.current_epoch)
-            self._hinge_val_confusion_matrix.reset()
+                hinge_cm_figure, _ = self._hinge_val_confusion_matrix[str(k)].plot()
+                self.logger.experiment.add_figure(f"val_{v}hinge_confusion_matrix", hinge_cm_figure, global_step=self.current_epoch)
+                self._hinge_val_confusion_matrix[str(k)].reset()
 
     def training_step(self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> torch.Tensor:
         x, y = batch
@@ -203,13 +235,14 @@ class Classifier(L.LightningModule):
         self.unfreeze_weights()
 
     def unfreeze_weights(self) -> None:
-        # Freeze backbone
-        if self.current_epoch == 25:
-            print("unfreezing backbone")
-            for param in self._backbone.layer4.parameters():
-                param.requires_grad = True
+        pass
+        # # Freeze backbone
+        # if self.current_epoch == 25:
+        #     print("unfreezing backbone")
+        #     for param in self._backbone.layer4.parameters():
+        #         param.requires_grad = True
 
-        if self.current_epoch == 75:
-            print("unfreezing backbone")
-            for param in self._backbone.parameters():
-                param.requires_grad = True
+        # if self.current_epoch == 75:
+        #     print("unfreezing backbone")
+        #     for param in self._backbone.parameters():
+        #         param.requires_grad = True
