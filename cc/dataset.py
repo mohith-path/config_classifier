@@ -48,7 +48,7 @@ class CCDataset(Dataset):
         else:
             self._transforms = torchvision.transforms.Compose(
                 [
-                    T.Resize(size=232, interpolation=torchvision.transforms.InterpolationMode.BILINEAR, antialias=True),
+                    T.Resize(size=250, interpolation=torchvision.transforms.InterpolationMode.BILINEAR, antialias=True),
                     T.CenterCrop(224),
                 ]
             )
