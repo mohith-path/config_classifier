@@ -1,5 +1,5 @@
 import os
-from typing import Tuple
+from typing import List, Tuple
 
 import yaml
 import numpy as np
@@ -62,10 +62,10 @@ class CCDataset(Dataset):
 
         if self.type == "train" and self.use_background_augmentation and np.random.rand() > 0.2:
 
-            def morph(x: torch.Tensor, scale: float, rotation: float) -> torch.Tensor:
+            def morph(x: torch.Tensor, scale: float, rotation: float, center: List = None) -> torch.Tensor:
                 h, w = x.shape[-2:]
+                x = T.functional.rotate(x, angle=rotation, center=center)
                 x = T.functional.resize(x, size=(int(scale * h), int(scale * w)), antialias=True)
-                x = T.functional.rotate(x, angle=rotation)
                 x = T.functional.center_crop(x, output_size=(h, w))
                 return x
 
@@ -78,11 +78,21 @@ class CCDataset(Dataset):
             mask = torchvision.io.read_image(mask_path)
             mask = (mask / 255.0).to(torch.uint8)
 
+            # Instance center
+            row_suppress = mask.amax(dim=-2)[0].numpy()
+            col_suppress = mask.amax(dim=-1)[0].numpy()
+            r_min = np.argmax(row_suppress)
+            c_min = np.argmax(col_suppress)
+            r_max = (row_suppress.shape[0] - 1) - np.argmax(row_suppress[::-1])
+            c_max = (col_suppress.shape[0] - 1) - np.argmax(col_suppress[::-1])
+            r_center = (r_min + r_max) // 2
+            c_center = (c_min + c_max) // 2
+
             # Apply a random transformation
             scale = np.random.uniform(0.75, 1.25)
             rotation = np.random.uniform(0, 360)
-            image_tensor = morph(image_tensor, scale=scale, rotation=rotation)
-            mask = morph(mask, scale=scale, rotation=rotation)
+            image_tensor = morph(image_tensor, scale=scale, rotation=rotation, center=(r_center, c_center))
+            mask = morph(mask, scale=scale, rotation=rotation, center=(r_center, c_center))
 
             # Compose a new image
             image_tensor = image_tensor * mask + (1 - mask) * bg_image
