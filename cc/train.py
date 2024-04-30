@@ -42,7 +42,7 @@ def train():
     validation_dataloader = torch.utils.data.DataLoader(
         dataset=validation_dataset,
         batch_size=CONFIG["batch_size"],
-        shuffle=False,
+        shuffle=True,
         num_workers=CONFIG["num_workers"],
         drop_last=False,
     )
