@@ -1,5 +1,5 @@
 import os
-from typing import List
+from typing import List, Optional
 
 import yaml
 import numpy as np
@@ -35,17 +35,24 @@ def print_stats(dataset_path: str, folders: List[str]) -> None:
     print("Hinge Stats: \n", hinge_stats)
 
 
-def split_dataset(dataset_path: str, train_fraction: float = 0.7) -> None:
+def split_dataset(dataset_path: str, train_fraction: float = 0.7, ordered_val_fraction: Optional[float] = 0.5) -> None:
     folders = list(
         filter(
             lambda folder: os.path.isdir(os.path.join(dataset_path, folder)),
             sorted(os.listdir(dataset_path)),
         )
     )
-    np.random.shuffle(folders)
-    index = int(np.round(train_fraction * len(folders)))
-    train_set = folders[:index]
-    val_set = folders[index:]
+
+    train_count = int(train_fraction * len(folders))
+    val_count = len(folders) - train_count
+    ordered_val_count = int(ordered_val_fraction * val_count)
+
+    ordered_folder = folders[-ordered_val_count:]
+    shuffled_folders = folders[:-ordered_val_count]
+    np.random.shuffle(shuffled_folders)
+
+    train_set = shuffled_folders[:train_count]
+    val_set = shuffled_folders[train_count:] + ordered_folder
 
     with open(os.path.join(dataset_path, "train.txt"), "w") as f:
         f.writelines(f"{folder}\n" for folder in train_set)
@@ -62,4 +69,4 @@ def split_dataset(dataset_path: str, train_fraction: float = 0.7) -> None:
 
 
 if __name__ == "__main__":
-    pass
+    split_dataset("data/v3", train_fraction=0.75, ordered_val_fraction=0.5)
