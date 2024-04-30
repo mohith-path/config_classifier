@@ -11,11 +11,11 @@ from cc.model import Classifier
 from cc.dataset import CCDataset
 
 CONFIG: Dict[str, Any] = {
-    "epochs": 200,
+    "epochs": 100,
     "batch_size": 32,
     "num_workers": 8,
     "seed": 0,
-    "dataset_path": "data/v2",
+    "dataset_path": "data/v3",
     "lr": 1e-4,
     "weight_decay": 1e-2,
     "train_bolt": True,
@@ -47,22 +47,13 @@ def train():
         drop_last=False,
     )
 
-    validation_dataset_2 = CCDataset(path="data/v2-1", type="val")
-    validation_dataloader_2 = torch.utils.data.DataLoader(
-        dataset=validation_dataset_2,
-        batch_size=CONFIG["batch_size"],
-        shuffle=False,
-        num_workers=CONFIG["num_workers"],
-        drop_last=False,
-    )
-
     trainer = L.Trainer(
         max_epochs=CONFIG["epochs"],
         accelerator="gpu",
         enable_progress_bar=True,
         callbacks=[
             ModelCheckpoint(monitor="val_bolt_cls_acc", mode="max", verbose=True),
-            # EarlyStopping(monitor="val_bolt_ce_loss", patience=15, verbose=True),
+            EarlyStopping(monitor="val_bolt_ce_loss", patience=15, verbose=True),
         ],
     )
 
@@ -77,7 +68,7 @@ def train():
     trainer.fit(
         model=model,
         train_dataloaders=train_dataloader,
-        val_dataloaders=[validation_dataloader, validation_dataloader_2],
+        val_dataloaders=validation_dataloader,
     )
 
 

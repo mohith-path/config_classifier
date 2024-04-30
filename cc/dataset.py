@@ -13,7 +13,7 @@ class CCDataset(Dataset):
 
     BACKGROUND_IMAGES_PATH = "data/background"
 
-    def __init__(self, path: str, type: str = "train", use_background_augmentation: bool = True) -> None:
+    def __init__(self, path: str, type: str = "train", use_background_augmentation: bool = False) -> None:
 
         self._path = path
         self.type = type
@@ -34,9 +34,9 @@ class CCDataset(Dataset):
         if type == "train":
             self._transforms = torchvision.transforms.Compose(
                 [
-                    T.RandomHorizontalFlip(),
-                    T.RandomVerticalFlip(),
-                    T.RandomRotation(degrees=180),
+                    # T.RandomHorizontalFlip(),
+                    # T.RandomVerticalFlip(),
+                    # T.RandomRotation(degrees=180),
                     T.GaussianBlur(kernel_size=5, sigma=[0.1, 4]),
                     T.RandomGrayscale(),
                     T.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3, hue=0.1),
