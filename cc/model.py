@@ -114,25 +114,37 @@ class Classifier(L.LightningModule):
 
         return x
 
-    def forward(self, x: torch.Tensor, skip_pre_process: bool = False) -> Tuple[Union[torch.Tensor, None], Union[torch.Tensor, None]]:
+    def forward(
+        self, x: torch.Tensor, skip_pre_process: bool = False, return_logits: bool = False
+    ) -> Tuple[Union[torch.Tensor, None], Union[torch.Tensor, None]]:
+        # Preprocess the image (data-type conversion and normalization)
         if not skip_pre_process:
             x = self.pre_processor(x)
-        x = self._backbone_forward(x)
-        x = torch.nn.functional.dropout(x, p=0.5, training=self.training)
 
+        # Extract features
+        x = self._backbone_forward(x)
+
+        # Predict logits
+        x = torch.nn.functional.dropout(x, p=0.5, training=self.training)
         bolt_logits = self._bolt_prediction_head(x) if self.train_bolt else None
         hinge_logits = self._hinge_prediction_head(x) if self.train_hinge else None
 
-        return bolt_logits, hinge_logits
+        if return_logits:
+            return bolt_logits, hinge_logits
+
+        # Compute class probabilities
+        bolt_probs = torch.sigmoid(bolt_logits)
+        hinge_probs = torch.sigmoid(hinge_logits)
+
+        return bolt_probs, hinge_probs
 
     def validation_step(self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> torch.Tensor:
         x, y = batch
-        bolt_logits, hinge_logits = self.forward(x)
+        bolt_predictions, hinge_predictions = self.forward(x)
 
         loss = 0
 
         if self.train_bolt:
-            bolt_predictions = torch.sigmoid(bolt_logits)
             bolt_loss = nn.functional.binary_cross_entropy(input=bolt_predictions, target=y[:, :1], reduction="mean")
             loss += bolt_loss
 
@@ -151,7 +163,6 @@ class Classifier(L.LightningModule):
             self._bolt_val_confusion_matrix.update(preds=bolt_predictions[:, 0].round(), target=y[:, 0])
 
         if self.train_hinge:
-            hinge_predictions = torch.sigmoid(hinge_logits)
             hinge_loss = nn.functional.binary_cross_entropy(input=hinge_predictions, target=y[:, 1:], reduction="mean")
             loss += hinge_loss
             self.log(
@@ -197,7 +208,7 @@ class Classifier(L.LightningModule):
 
     def training_step(self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> torch.Tensor:
         x, y = batch
-        bolt_logits, hinge_logits = self.forward(x)
+        bolt_logits, hinge_logits = self.forward(x, return_logits=True)
 
         loss = 0
 
