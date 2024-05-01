@@ -27,6 +27,7 @@ CONFIG: Dict[str, Any] = {
 def train():
     np.random.seed(CONFIG["seed"])
     torch.manual_seed(CONFIG["seed"])
+    torch.set_float32_matmul_precision("highest")
 
     train_dataset = CCDataset(path=CONFIG["dataset_path"], type="train")
     validation_dataset = CCDataset(path=CONFIG["dataset_path"], type="val")
@@ -55,6 +56,7 @@ def train():
             ModelCheckpoint(monitor="val_bolt_cls_acc", mode="max", verbose=True),
             EarlyStopping(monitor="val_bolt_ce_loss", patience=15, verbose=True),
         ],
+        log_every_n_steps=20,
     )
 
     model = Classifier(

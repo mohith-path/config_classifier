@@ -6,7 +6,7 @@ import torch.optim as optim
 import pytorch_lightning as L
 import torchvision.transforms.v2 as T
 from torchvision.models import ResNet18_Weights, resnet18
-from torchmetrics.classification import BinaryAccuracy, MulticlassConfusionMatrix
+from torchmetrics.classification import MulticlassAccuracy, MulticlassConfusionMatrix
 
 
 class Classifier(L.LightningModule):
@@ -51,12 +51,12 @@ class Classifier(L.LightningModule):
 
         # Set up classified head
         if self.train_bolt:
-            self._bolt_prediction_head = nn.Linear(feat_dim, out_features=1)
+            self._bolt_prediction_head = nn.Linear(feat_dim, out_features=3)
             self._bolt_prediction_head.weight.data.normal_(mean=0.0, std=0.01)
             self._bolt_prediction_head.bias.data.zero_()
 
         if self.train_hinge:
-            self._hinge_prediction_head = nn.Linear(feat_dim, out_features=1)
+            self._hinge_prediction_head = nn.Linear(feat_dim, out_features=3)
             self._hinge_prediction_head.weight.data.normal_(mean=0.0, std=0.01)
             self._hinge_prediction_head.bias.data.zero_()
 
@@ -70,18 +70,18 @@ class Classifier(L.LightningModule):
 
         # Setup metrics
         if self.train_bolt:
-            self._bolt_train_accuracy = BinaryAccuracy(threshold=0.5, multidim_average="global")
-            self._bolt_train_confusion_matrix = MulticlassConfusionMatrix(num_classes=2)
+            self._bolt_train_accuracy = MulticlassAccuracy(num_classes=3, multidim_average="global")
+            self._bolt_train_confusion_matrix = MulticlassConfusionMatrix(num_classes=3)
 
-            self._bolt_val_accuracy = BinaryAccuracy(threshold=0.5, multidim_average="global")
-            self._bolt_val_confusion_matrix = MulticlassConfusionMatrix(num_classes=2)
+            self._bolt_val_accuracy = MulticlassAccuracy(num_classes=3, multidim_average="global")
+            self._bolt_val_confusion_matrix = MulticlassConfusionMatrix(num_classes=3)
 
         if self.train_hinge:
-            self._hinge_train_accuracy = BinaryAccuracy(threshold=0.5, multidim_average="global")
-            self._hinge_train_confusion_matrix = MulticlassConfusionMatrix(num_classes=2)
+            self._hinge_train_accuracy = MulticlassAccuracy(num_classes=3, multidim_average="global")
+            self._hinge_train_confusion_matrix = MulticlassConfusionMatrix(num_classes=3)
 
-            self._hinge_val_accuracy = BinaryAccuracy(threshold=0.5, multidim_average="global")
-            self._hinge_val_confusion_matrix = MulticlassConfusionMatrix(num_classes=2)
+            self._hinge_val_accuracy = MulticlassAccuracy(num_classes=3, multidim_average="global")
+            self._hinge_val_confusion_matrix = MulticlassConfusionMatrix(num_classes=3)
 
     def configure_optimizers(self) -> None:
         optimizer = optim.Adam(self.parameters(), lr=self._lr, weight_decay=self._weight_decay)
@@ -133,19 +133,20 @@ class Classifier(L.LightningModule):
             return bolt_logits, hinge_logits
 
         # Compute class probabilities
-        bolt_probs = torch.sigmoid(bolt_logits)
-        hinge_probs = torch.sigmoid(hinge_logits)
+        bolt_probs = torch.softmax(bolt_logits, dim=-1)
+        hinge_probs = torch.softmax(hinge_logits, dim=-1)
 
         return bolt_probs, hinge_probs
 
     def validation_step(self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> torch.Tensor:
         x, y = batch
-        bolt_predictions, hinge_predictions = self.forward(x)
+        bolt_logits, hinge_logits = self.forward(x, return_logits=True)
 
         loss = 0
 
         if self.train_bolt:
-            bolt_loss = nn.functional.binary_cross_entropy(input=bolt_predictions, target=y[:, :1], reduction="mean")
+            bolt_predictions = nn.functional.softmax(bolt_logits, dim=-1)
+            bolt_loss = nn.functional.cross_entropy(input=bolt_logits, target=y[:, 0], reduction="mean")
             loss += bolt_loss
 
             self.log(
@@ -159,11 +160,12 @@ class Classifier(L.LightningModule):
                 add_dataloader_idx=False,
             )
 
-            self._bolt_val_accuracy.update(preds=bolt_predictions, target=y[:, :1])
-            self._bolt_val_confusion_matrix.update(preds=bolt_predictions[:, 0].round(), target=y[:, 0])
+            self._bolt_val_accuracy.update(preds=bolt_predictions, target=y[:, 0])
+            self._bolt_val_confusion_matrix.update(preds=bolt_predictions.argmax(dim=-1), target=y[:, 0])
 
         if self.train_hinge:
-            hinge_loss = nn.functional.binary_cross_entropy(input=hinge_predictions, target=y[:, 1:], reduction="mean")
+            hinge_predictions = torch.softmax(hinge_logits, dim=-1)
+            hinge_loss = nn.functional.cross_entropy(input=hinge_logits, target=y[:, 1], reduction="mean")
             loss += hinge_loss
             self.log(
                 name=f"val_hinge_ce_loss",
@@ -176,8 +178,8 @@ class Classifier(L.LightningModule):
                 add_dataloader_idx=False,
             )
 
-            self._hinge_val_accuracy.update(preds=hinge_predictions, target=y[:, 1:])
-            self._hinge_val_confusion_matrix.update(preds=hinge_predictions[:, 0].round(), target=y[:, 1])
+            self._hinge_val_accuracy.update(preds=hinge_predictions, target=y[:, 1])
+            self._hinge_val_confusion_matrix.update(preds=hinge_predictions.argmax(dim=-1), target=y[:, 1])
 
         self.logger.experiment.add_image(
             tag=f"val_image_{batch_idx}",
@@ -213,28 +215,28 @@ class Classifier(L.LightningModule):
         loss = 0
 
         if self.train_bolt:
-            bolt_predictions = torch.sigmoid(bolt_logits)
-            bolt_loss = nn.functional.binary_cross_entropy_with_logits(input=bolt_logits, target=y[:, :1], reduction="mean")
+            bolt_predictions = torch.softmax(bolt_logits, dim=-1)
+            bolt_loss = nn.functional.cross_entropy(input=bolt_logits, target=y[:, 0], reduction="mean")
             loss += bolt_loss
 
             self.log(
                 name="train_bolt_ce_loss", value=bolt_loss, prog_bar=True, on_epoch=True, on_step=False, logger=True, batch_size=len(x)
             )
 
-            self._bolt_train_accuracy.update(preds=bolt_predictions, target=y[:, :1])
-            self._bolt_train_confusion_matrix.update(preds=bolt_predictions[:, 0].round(), target=y[:, 0])
+            self._bolt_train_accuracy.update(preds=bolt_predictions, target=y[:, 0])
+            self._bolt_train_confusion_matrix.update(preds=bolt_predictions.argmax(dim=-1), target=y[:, 0])
 
         if self.train_hinge:
-            hinge_predictions = torch.sigmoid(hinge_logits)
-            hinge_loss = nn.functional.binary_cross_entropy_with_logits(input=hinge_logits, target=y[:, 1:], reduction="mean")
+            hinge_predictions = torch.softmax(hinge_logits, dim=-1)
+            hinge_loss = nn.functional.cross_entropy(input=hinge_logits, target=y[:, 1], reduction="mean")
             loss += hinge_loss
 
             self.log(
                 name="train_hinge_ce_loss", value=hinge_loss, prog_bar=True, on_epoch=True, on_step=False, logger=True, batch_size=len(x)
             )
 
-            self._hinge_train_accuracy.update(preds=hinge_predictions, target=y[:, 1:])
-            self._hinge_train_confusion_matrix.update(preds=hinge_predictions[:, 0].round(), target=y[:, 1])
+            self._hinge_train_accuracy.update(preds=hinge_predictions, target=y[:, 1])
+            self._hinge_train_confusion_matrix.update(preds=hinge_predictions.argmax(dim=-1), target=y[:, 1])
 
         self.logger.experiment.add_image(tag=f"train_image_{batch_idx}", img_tensor=x[0], global_step=self.current_epoch)
 
