@@ -35,7 +35,7 @@ def print_stats(dataset_path: str, folders: List[str]) -> None:
     print("Hinge Stats: \n", hinge_stats)
 
 
-def split_dataset(dataset_path: str, train_fraction: float = 0.7, ordered_val_fraction: Optional[float] = 0.5) -> None:
+def split_dataset(dataset_path: str, train_fraction: float = 0.7) -> None:
     folders = list(
         filter(
             lambda folder: os.path.isdir(os.path.join(dataset_path, folder)),
@@ -43,16 +43,18 @@ def split_dataset(dataset_path: str, train_fraction: float = 0.7, ordered_val_fr
         )
     )
 
+    val_only_folders = list(filter(lambda folder: "val" in folder, folders))
+    unassigned_folders = list(filter(lambda folder: "val" not in folders, folders))
+    print(f"Found {len(val_only_folders)} validation only folders.")
+
     train_count = int(train_fraction * len(folders))
-    val_count = len(folders) - train_count
-    ordered_val_count = int(ordered_val_fraction * val_count)
+    if train_count > len(unassigned_folders):
+        print("WARNING! The specified train-val split is not respected due to a high number of val-only samples.")
 
-    ordered_folder = folders[-ordered_val_count:]
-    shuffled_folders = folders[:-ordered_val_count]
-    np.random.shuffle(shuffled_folders)
+    np.random.shuffle(unassigned_folders)
 
-    train_set = shuffled_folders[:train_count]
-    val_set = shuffled_folders[train_count:] + ordered_folder
+    train_set = unassigned_folders[:train_count]
+    val_set = unassigned_folders[train_count:] + val_only_folders
 
     with open(os.path.join(dataset_path, "train.txt"), "w") as f:
         f.writelines(f"{folder}\n" for folder in train_set)
@@ -69,4 +71,4 @@ def split_dataset(dataset_path: str, train_fraction: float = 0.7, ordered_val_fr
 
 
 if __name__ == "__main__":
-    split_dataset("data/v3", train_fraction=0.75, ordered_val_fraction=0.5)
+    split_dataset("data/v3", train_fraction=0.75)

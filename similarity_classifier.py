@@ -1,5 +1,5 @@
 import os.path
-from typing import Dict
+from typing import Dict, Optional
 
 import cv2
 import tqdm
@@ -63,7 +63,7 @@ class SimilarityClassifier:
 
         logits = torch.einsum("cwh,rcwh->r", [query, self._embeddings])
         # adopt the max similarity from different templates for each object
-        index = logits.argmax(-1).detach().cpu().item()  # (M, R)
+        index = logits.argmax(-1).item()  # (M, R)
 
         return self._labels[index], index
 
@@ -71,8 +71,10 @@ class SimilarityClassifier:
     def process_label(label: Dict) -> int:
         return label["bolt"]
 
-    def validate(self, visualize: bool = False) -> None:
-        with open(f"data/v2-1/val.txt", "r") as f:
+    def validate(self, dataset_path: Optional[str] = None, visualize: bool = False) -> None:
+        if dataset_path is None:
+            dataset_path = self._dataset_path
+        with open(f"{dataset_path}/val.txt", "r") as f:
             samples = f.readlines()
         samples = [sample.strip() for sample in samples]  # Strip newline characters from each line
 
@@ -80,10 +82,10 @@ class SimilarityClassifier:
         pred_labels = []
 
         for index in range(len(samples)):
-            candidate_path = os.path.join(f"data/v2-1/{samples[index]}", "image.png")
+            candidate_path = os.path.join(f"{dataset_path}/{samples[index]}", "image.png")
             candidate_image_tensor = torchvision.io.read_image(path=candidate_path)
 
-            candidate_label_path = os.path.join(f"data/v2-1/{samples[index]}", "label.yaml")
+            candidate_label_path = os.path.join(f"{dataset_path}/{samples[index]}", "label.yaml")
             candidate_label = yaml.safe_load(open(candidate_label_path, "r"))
 
             pred_label, anchor_index = classifier.forward(candidate_image_tensor)
@@ -108,7 +110,7 @@ class SimilarityClassifier:
 
 
 if __name__ == "__main__":
-    DATASET_PATH = "data/v2"
+    DATASET_PATH = "data/v3"
 
     classifier = SimilarityClassifier(dataset_path=DATASET_PATH, device="cuda")
-    classifier.validate(visualize=True)
+    classifier.validate(visualize=False)

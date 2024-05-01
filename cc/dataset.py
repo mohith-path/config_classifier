@@ -42,13 +42,19 @@ class CCDataset(Dataset):
                     T.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3, hue=0.1),
                     T.RandomPerspective(distortion_scale=0.25),
                     T.Resize(size=250, interpolation=torchvision.transforms.InterpolationMode.BILINEAR, antialias=True),
-                    T.RandomCrop(224),
+                    T.RandomResizedCrop(
+                        size=224,
+                        scale=(0.9, 1),
+                        ratio=(1, 1),
+                        interpolation=torchvision.transforms.InterpolationMode.BILINEAR,
+                        antialias=True,
+                    ),
                 ]
             )
         else:
             self._transforms = torchvision.transforms.Compose(
                 [
-                    T.Resize(size=250, interpolation=torchvision.transforms.InterpolationMode.BILINEAR, antialias=True),
+                    T.Resize(size=232, interpolation=torchvision.transforms.InterpolationMode.BILINEAR, antialias=True),
                     T.CenterCrop(224),
                 ]
             )

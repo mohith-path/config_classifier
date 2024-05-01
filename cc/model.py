@@ -254,7 +254,7 @@ class Classifier(L.LightningModule):
 
     def unfreeze_weights(self) -> None:
         # Freeze backbone
-        if self.current_epoch == 75:
-            print("unfreezing backbone")
+        if self.current_epoch == 80:
+            print("Unfreezing layer 4...")
             for param in self._backbone.layer4.parameters():
                 param.requires_grad = True
